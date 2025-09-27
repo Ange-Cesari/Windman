@@ -1,13 +1,9 @@
-
 use clap::{Parser, Subcommand, Args};
 use anyhow::{Result, bail};
 
 use crate::config::{Config, ConfigPaths};
-use crate::paths::{resolve_paths};
-use crate::install;
-use crate::version;
-use crate::desktop;
-use crate::prune;
+use crate::paths::resolve_paths;
+use crate::{install, version, desktop, prune};
 
 #[derive(Parser, Debug)]
 #[command(name = "windman", version, about = "Windsurf Manager (userland, standalone)")]
@@ -28,22 +24,32 @@ pub struct Cli {
 pub enum Commands {
     /// Download + install latest stable (next step). For now: install from a provided tar.gz.
     Install(InstallArgs),
+
     /// Compare local vs remote and update if needed (coming soon)
     Update(UpdateArgs),
+
     /// Show local version and paths
     Status,
+
     /// Print install and shim paths
     Where,
+
     /// Show changelog delta (coming soon)
     Changelog,
+
     /// Remove installs and shims (keeps user data)
     Uninstall { #[arg(long)] purge: bool },
+
     /// Switch back to previous kept version
     Rollback,
+
     /// Manage configuration
-    
     #[command(subcommand)]
     Config(ConfigCmd),
+
+    /// Internal helper to test the downloader (hidden in help)
+    #[command(hide = true)]
+    DevDownload(DevDownloadArgs),
 }
 
 #[derive(Args, Debug)]
@@ -92,6 +98,21 @@ pub enum ConfigCmd {
     Show,
 }
 
+#[derive(Args, Debug)]
+pub struct DevDownloadArgs {
+    /// URL to download
+    #[arg(long)]
+    pub url: String,
+
+    /// Output file path
+    #[arg(long)]
+    pub out: String,
+
+    /// Request timeout in seconds (overrides default 30s)
+    #[arg(long)]
+    pub timeout: Option<u64>,
+}
+
 impl Cli {
     pub fn parse() -> Self { <Cli as Parser>::parse() }
 
@@ -100,7 +121,9 @@ impl Cli {
         let cfg = Config::load_or_default(&cfg_paths)?;
         let eff = resolve_paths(&cfg)?;
 
-        if self.verbose { eprintln!("[windman] Using config at {}", cfg_paths.config_display()); }
+        if self.verbose {
+            eprintln!("[windman] Using config at {}", cfg_paths.config_display());
+        }
 
         match &self.cmd {
             Commands::Install(args) => {
@@ -114,7 +137,11 @@ impl Cli {
                 if let Some(tar) = &args.tar {
                     let ver = install::install_from_tar(tar, &eff)?;
                     println!("Installed Windsurf {} to {:?}", ver, eff.prefix_dir);
-                    let want_desktop = if args.no_desktop { false } else { args.desktop || cfg.install.desktop_integration };
+                    let want_desktop = if args.no_desktop {
+                        false
+                    } else {
+                        args.desktop || cfg.install.desktop_integration
+                    };
                     if want_desktop {
                         desktop::ensure_desktop_files(&eff)?;
                         println!("Desktop entry installed");
@@ -171,6 +198,16 @@ impl Cli {
                     Ok(())
                 }
             },
+            Commands::DevDownload(args) => {
+                use std::path::Path;
+                crate::download::download_to_file_with_timeout(
+                    &args.url,
+                    Path::new(&args.out),
+                    args.timeout,
+                )?;
+                println!("Downloaded to {}", args.out);
+                Ok(())
+            }
         }
     }
 }
