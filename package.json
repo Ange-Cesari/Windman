@@ -2,8 +2,8 @@
     "name": "windman-devtools",
     "private": true,
     "devDependencies": {
-      "@commitlint/cli": "^19.4.0",
-      "@commitlint/config-conventional": "^19.4.0"
+      "@commitlint/cli": "^17.7.2",
+      "@commitlint/config-conventional": "^17.7.0"
     }
   }
   
