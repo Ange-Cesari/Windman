@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [ main, develop, feat/** ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-test:
+    name: Build • Test • Clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Run Task CI
+        run: task ci

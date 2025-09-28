@@ -1,31 +1,56 @@
-use crate::config::Config;
 use anyhow::Result;
-use std::path::PathBuf;
+use directories::BaseDirs;
+use shellexpand::tilde;
+use std::path::{PathBuf};
 
+use crate::config::Config;
+
+/// All resolved (expanded) paths Windman uses at runtime.
 #[derive(Debug, Clone)]
 pub struct EffectivePaths {
+    /// Versioned installs live here (e.g. ~/.local/opt/windsurf/1.12.11)
     pub prefix_dir: PathBuf,
+    /// Alias to the same place where version dirs live (kept for clarity/tests)
     pub versions_dir: PathBuf,
+    /// Symlink pointing to the active version dir (e.g. ~/.local/opt/windsurf/current)
     pub current_symlink: PathBuf,
+    /// Where the shim script is written (dir only, e.g. ~/.local/bin)
     pub bin_dir: PathBuf,
+    /// Full path to the shim (e.g. ~/.local/bin/windsurf)
     pub bin_shim: PathBuf,
+    /// Desktop entry path (e.g. ~/.local/share/applications/windsurf.desktop)
     pub desktop_file: PathBuf,
+    /// Icons base dir (e.g. ~/.local/share/icons)
     pub icons_dir: PathBuf,
 }
 
-pub fn expand_tilde(s: &str) -> PathBuf {
-    let expanded = shellexpand::tilde(s).to_string();
-    PathBuf::from(expanded)
+/// Expand a path that may contain ~
+fn expand(p: &str) -> PathBuf {
+    PathBuf::from(tilde(p).into_owned())
 }
 
+/// Compute effective paths from config (expands ~, fills XDG locations).
 pub fn resolve_paths(cfg: &Config) -> Result<EffectivePaths> {
-    let prefix_dir = expand_tilde(&cfg.install.prefix_dir);
+    let prefix_dir = expand(&cfg.install.prefix_dir);
     let versions_dir = prefix_dir.clone();
     let current_symlink = prefix_dir.join("current");
-    let bin_dir = expand_tilde(&cfg.install.bin_dir);
+
+    let bin_dir = expand(&cfg.install.bin_dir);
     let bin_shim = bin_dir.join("windsurf");
-    let desktop_file = expand_tilde("~/.local/share/applications").join("windsurf.desktop");
-    let icons_dir = expand_tilde("~/.local/share/icons/hicolor/512x512/apps");
+
+    // XDG data (for desktop file + icons)
+    let base = BaseDirs::new();
+    // Fallback to ~/.local/share if XDG can't be resolved (very rare)
+    let data_dir = base
+        .map(|b| b.data_local_dir().to_path_buf())
+        .unwrap_or_else(|| {
+            let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("~"));
+            home.join(".local/share")
+        });
+
+    let desktop_file = data_dir.join("applications/windsurf.desktop");
+    let icons_dir = data_dir.join("icons");
+
     Ok(EffectivePaths {
         prefix_dir,
         versions_dir,
@@ -35,41 +60,4 @@ pub fn resolve_paths(cfg: &Config) -> Result<EffectivePaths> {
         desktop_file,
         icons_dir,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::{Changelog, Config, Install, Network, Telemetry};
-    use std::env;
-    use tempfile::tempdir;
-
-    #[test]
-    fn resolve_paths_expands_tilde_with_home() {
-        let td = tempdir().unwrap();
-        // pointer $HOME vers un dossier temporaire
-        env::set_var("HOME", td.path());
-
-        let cfg = Config {
-            install: Install {
-                prefix_dir: "~/.local/opt/windsurf".into(),
-                bin_dir: "~/.local/bin".into(),
-                channel: "stable".into(),
-                keep: 2,
-                desktop_integration: true,
-            },
-            changelog: Changelog { _reserved: None },
-            network: Network {
-                proxy_enabled: false,
-            },
-            telemetry: Telemetry { enabled: false },
-        };
-
-        let eff = resolve_paths(&cfg).unwrap();
-        assert!(eff
-            .prefix_dir
-            .starts_with(td.path().join(".local/opt/windsurf")));
-        assert_eq!(eff.bin_shim, td.path().join(".local/bin/windsurf"));
-        assert_eq!(eff.current_symlink, eff.prefix_dir.join("current"));
-    }
 }

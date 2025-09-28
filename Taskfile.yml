@@ -1,0 +1,97 @@
+version: '3'
+
+tasks:
+  fmt:
+    desc: "CI pipeline: fmt + clippy + test + build"
+    cmds:
+      - cargo fmt
+
+  clippy:
+    desc: "Run clippy with -D warnings"
+    cmds:
+      - cargo clippy -- -D warnings
+
+  test:
+    desc: "Run unit tests"
+    cmds:
+      - cargo test --all --locked
+
+  build:
+    desc: "Build release (native target)"
+    cmds:
+      - cargo build --release --locked
+
+  ci:
+    desc: "CI pipeline: fmt + clippy + test + build"
+    cmds:
+      - task fmt
+      - task clippy
+      - task test
+      - task build
+
+  dist:linux:
+    desc: "Package tar.gz + SHA256 for a target (defaults to host target)"
+    # Usage:
+    #   task dist:linux               # host target
+    #   task dist:linux TARGET=x86_64-unknown-linux-gnu
+    #   task dist:linux TARGET=aarch64-apple-darwin
+    env:
+      DIST_DIR: dist
+      BINARY_NAME: windman
+    cmds:
+      - |
+        set -euo pipefail
+
+        # Compute VERSION: prefer git tag, else Cargo.toml; strip any leading 'v' defensively
+        if VERSION_RAW="$(git describe --tags --dirty --always 2>/dev/null)"; then
+          VERSION="${VERSION_RAW#v}"
+        else
+          VERSION="$(awk -F '"' '/^version\s*=\s*/{print $2; exit}' Cargo.toml)"
+        fi
+
+        # Compute TARGET: default to host unless TARGET is provided
+        if [ -z "${TARGET:-}" ]; then
+          TARGET="$(rustc -vV | awk -F '[: ]+' '/host:/{print $2}')"
+        fi
+
+        echo "Version: ${VERSION}"
+        echo "Target : ${TARGET}"
+
+        mkdir -p "${DIST_DIR}"
+
+        HOST="$(rustc -vV | awk -F '[: ]+' '/host:/{print $2}')"
+        if [ "${TARGET}" = "${HOST}" ]; then
+          cargo build --release --locked
+          BIN="target/release/${BINARY_NAME}"
+        else
+          rustup target add "${TARGET}" || true
+          cargo build --release --locked --target "${TARGET}"
+          BIN="target/${TARGET}/release/${BINARY_NAME}"
+        fi
+
+        OUT_DIR="${DIST_DIR}/${BINARY_NAME}-${VERSION}-${TARGET}"
+        mkdir -p "${OUT_DIR}"
+        cp "${BIN}" "${OUT_DIR}/"
+        [ -f README.md ] && cp README.md "${OUT_DIR}/" || true
+        [ -f LICENSE ] && cp LICENSE "${OUT_DIR}/" || true
+
+        tar -C "${DIST_DIR}" -czf "${OUT_DIR}.tar.gz" "$(basename "${OUT_DIR}")"
+        (cd "${DIST_DIR}" && sha256sum "$(basename "${OUT_DIR}").tar.gz" > "$(basename "${OUT_DIR}").tar.gz.sha256")
+
+        ls -l "${DIST_DIR}"
+
+  clean:
+    desc: "Clean target and dist"
+    cmds:
+      - cargo clean
+      - rm -rf dist
+
+  version:
+    desc: "Print computed version (git tag or Cargo.toml), v-stripped"
+    cmds:
+      - |
+        if VERSION_RAW="$(git describe --tags --dirty --always 2>/dev/null)"; then
+          echo "${VERSION_RAW#v}"
+        else
+          awk -F '"' '/^version\s*=\s*/{print $2; exit}' Cargo.toml
+        fi
