@@ -2,7 +2,7 @@ version: '3'
 
 tasks:
   fmt:
-    desc: "CI pipeline: fmt + clippy + test + build"
+    desc: "Run rustfmt"
     cmds:
       - cargo fmt
 
@@ -14,12 +14,12 @@ tasks:
   test:
     desc: "Run unit tests"
     cmds:
-      - cargo test --all --locked
+      - cargo test --all
 
   build:
     desc: "Build release (native target)"
     cmds:
-      - cargo build --release --locked
+      - cargo build --release
 
   ci:
     desc: "CI pipeline: fmt + clippy + test + build"
@@ -31,10 +31,6 @@ tasks:
 
   dist:linux:
     desc: "Package tar.gz + SHA256 for a target (defaults to host target)"
-    # Usage:
-    #   task dist:linux               # host target
-    #   task dist:linux TARGET=x86_64-unknown-linux-gnu
-    #   task dist:linux TARGET=aarch64-apple-darwin
     env:
       DIST_DIR: dist
       BINARY_NAME: windman
@@ -46,7 +42,7 @@ tasks:
         if VERSION_RAW="$(git describe --tags --dirty --always 2>/dev/null)"; then
           VERSION="${VERSION_RAW#v}"
         else
-          VERSION="$(awk -F '"' '/^version\s*=\s*/{print $2; exit}' Cargo.toml)"
+          VERSION="$(awk -F '\"' '/^version\\s*=\\s*/{print $2; exit}' Cargo.toml)"
         fi
 
         # Compute TARGET: default to host unless TARGET is provided
@@ -61,11 +57,11 @@ tasks:
 
         HOST="$(rustc -vV | awk -F '[: ]+' '/host:/{print $2}')"
         if [ "${TARGET}" = "${HOST}" ]; then
-          cargo build --release --locked
+          cargo build --release
           BIN="target/release/${BINARY_NAME}"
         else
           rustup target add "${TARGET}" || true
-          cargo build --release --locked --target "${TARGET}"
+          cargo build --release --target "${TARGET}"
           BIN="target/${TARGET}/release/${BINARY_NAME}"
         fi
 
@@ -93,5 +89,5 @@ tasks:
         if VERSION_RAW="$(git describe --tags --dirty --always 2>/dev/null)"; then
           echo "${VERSION_RAW#v}"
         else
-          awk -F '"' '/^version\s*=\s*/{print $2; exit}' Cargo.toml
+          awk -F '\"' '/^version\\s*=\\s*/{print $2; exit}' Cargo.toml
         fi
