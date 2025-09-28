@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - '*.*.*'   # e.g. 1.2.3 (no leading 'v')
+      - '*.*.*'   # e.g. 0.1.0
 
 env:
   BINARY_NAME: windman
@@ -81,15 +81,18 @@ jobs:
           output-file: false
           skip-commit: true
           skip-tag: true
+          skip-bump: true
+          skip-version-file: true
+          skip-git-pull: true
+          tag-prefix: ""
           preset: conventionalcommits
-          git-message: "chore(release): {version}"
           release-count: 0
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}     # e.g. 1.2.3
-          tag_name: ${{ github.ref_name }} # e.g. 1.2.3
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.clean_changelog }}
           files: |
             dist/*
