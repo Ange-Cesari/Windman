@@ -103,7 +103,7 @@ windman --prefix ~/Dev/windsurf --bin-dir ~/bin update
 ## Targets
 
 - **Linux x86_64**: `x86_64-unknown-linux-gnu`  
-- **Linux AArch64**: `aarch64-unknown-linux-gnu`  
+- **Linux AArch64**: `not supported because tarball isn't released by codeium yet`  
 - macOS is **out of scope** for Windman (Windsurf provides its own macOS installer).
 
 ## Development
@@ -124,7 +124,6 @@ task ci
 # Package (host target by default; or set TARGET explicitly)
 task dist:linux
 task dist:linux TARGET=x86_64-unknown-linux-gnu
-task dist:linux TARGET=aarch64-unknown-linux-gnu
 ```
 
 ## License

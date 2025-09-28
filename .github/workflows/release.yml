@@ -10,49 +10,40 @@ env:
 
 jobs:
   build-linux:
-    name: Build Linux (${{ matrix.target }})
+    name: Build Linux (x86_64-unknown-linux-gnu)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-unknown-linux-gnu
 
       - uses: Swatinem/rust-cache@v2
-
-      # Only needed for cross-linking aarch64 GNU on x64 runner
-      - name: Install cross linker (aarch64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Install Task
         uses: arduino/setup-task@v1
 
-      - name: Build & Dist (${{ matrix.target }})
+      - name: Build & Dist (linux x86_64)
         run: |
-          rustup target add ${{ matrix.target }} || true
-          task dist:linux TARGET=${{ matrix.target }}
+          rustup target add x86_64-unknown-linux-gnu || true
+          task dist:linux TARGET=x86_64-unknown-linux-gnu
 
-      - name: Generate SBOM (CycloneDX, ${{ matrix.target }})
+      - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@v0
         with:
           path: .
           format: cyclonedx-json
-          output-file: dist/sbom-${{ matrix.target }}.cdx.json
+          output-file: dist/sbom-x86_64-unknown-linux-gnu.cdx.json
+          upload-artifact: true
+          upload-release-assets: true
+          artifact-name: sbom-x86_64-unknown-linux-gnu
 
-      - name: Upload artifacts (${{ matrix.target }})
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.target }}-dist
+          name: linux-dist
           path: dist/*
 
   release:
@@ -63,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for changelog range
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
