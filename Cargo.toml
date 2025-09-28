@@ -1,0 +1,36 @@
+[package]
+name = "windman"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+anyhow = "1.0.86"
+thiserror = "1.0.63"
+clap = { version = "4.5.7", features = ["derive", "env"] }
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
+toml = "0.8.19"
+# Networking will be added in the next step (reqwest + rustls). For now, local --tar install works.
+reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "gzip", "brotli", "json", "blocking"] }
+flate2 = "1.0.30"
+tar = "0.4.41"
+sha2 = "0.10.8"
+hex = "0.4.3"
+indicatif = "0.17.8"
+directories = "5.0.1"
+walkdir = "2.5.0"
+fs4 = "0.7.0"
+tempfile = "3.10.1"
+chrono = { version = "0.4.38", features = ["clock"] }
+shellexpand = "3.1.0"
+semver = "1.0.23"
+scraper = "0.19.0"
+regex = "1.10.6"
+
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
