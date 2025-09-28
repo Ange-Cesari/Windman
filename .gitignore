@@ -1,0 +1,39 @@
+# Rust / Cargo
+target/
+Cargo.lock
+
+# Binaries (built or temp)
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+
+# Backups & temp
+*.swp
+*.swo
+*.tmp
+*.bak
+*.old
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.iml
+
+# Custom (optional for Windman)
+# ignore fake test tarballs if generated under repo
+windsurf-linux-x64-*.tar.gz
