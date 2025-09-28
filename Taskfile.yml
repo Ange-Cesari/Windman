@@ -14,12 +14,12 @@ tasks:
   test:
     desc: "Run unit tests"
     cmds:
-      - cargo test --all
+      - cargo test --all --locked
 
   build:
     desc: "Build release (native target)"
     cmds:
-      - cargo build --release
+      - cargo build --release --locked
 
   ci:
     desc: "CI pipeline: fmt + clippy + test + build"
@@ -57,11 +57,11 @@ tasks:
 
         HOST="$(rustc -vV | awk -F '[: ]+' '/host:/{print $2}')"
         if [ "${TARGET}" = "${HOST}" ]; then
-          cargo build --release
+          cargo build --release --locked
           BIN="target/release/${BINARY_NAME}"
         else
           rustup target add "${TARGET}" || true
-          cargo build --release --target "${TARGET}"
+          cargo build --release --target "${TARGET}" --locked
           BIN="target/${TARGET}/release/${BINARY_NAME}"
         fi
 
