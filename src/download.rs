@@ -27,11 +27,6 @@ fn build_client(timeout_secs: u64) -> Result<Client> {
     Ok(client)
 }
 
-/// Backward-compatible wrapper with default timeout.
-pub fn download_to_file(url: &str, dest: &Path) -> Result<()> {
-    download_to_file_with_timeout(url, dest, None)
-}
-
 /// Download `url` to `dest`, with optional timeout override (in seconds).
 /// Writes atomically: to `dest.part` then renames to `dest` at the end.
 pub fn download_to_file_with_timeout(
@@ -78,7 +73,9 @@ pub fn download_to_file_with_timeout(
         }
         None => {
             let pb = ProgressBar::new_spinner();
-            pb.set_style(ProgressStyle::with_template("{spinner} {bytes} downloaded")?);
+            pb.set_style(ProgressStyle::with_template(
+                "{spinner} {bytes} downloaded",
+            )?);
             pb.enable_steady_tick(Duration::from_millis(120));
             pb
         }
@@ -104,13 +101,8 @@ pub fn download_to_file_with_timeout(
     pb.finish_and_clear();
 
     // Atomic rename to final destination
-    fs::rename(&temp_path, dest).with_context(|| {
-        format!(
-            "renaming {} -> {}",
-            temp_path.display(),
-            dest.display()
-        )
-    })?;
+    fs::rename(&temp_path, dest)
+        .with_context(|| format!("renaming {} -> {}", temp_path.display(), dest.display()))?;
 
     Ok(())
 }

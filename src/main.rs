@@ -1,15 +1,15 @@
-
 use anyhow::Result;
 
 mod cli;
 mod config;
-mod paths;
-mod version;
-mod install;
-mod download;
 mod desktop;
+mod download;
+mod install;
+mod paths;
 mod prune;
+mod remote;
 mod util;
+mod version;
 
 use cli::Cli;
 

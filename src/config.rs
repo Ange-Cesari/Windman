@@ -1,8 +1,7 @@
-
-use anyhow::{Result, Context};
-use serde::{Serialize, Deserialize};
-use std::{fs, path::PathBuf};
+use anyhow::{Context, Result};
 use directories::ProjectDirs;
+use serde::{Deserialize, Serialize};
+use std::{fs, path::PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ConfigPaths {
@@ -15,7 +14,10 @@ impl ConfigPaths {
         if let Some(p) = path {
             let file = shellexpand::tilde(p).to_string();
             let file = PathBuf::from(file);
-            let dir = file.parent().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf();
+            let dir = file
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."))
+                .to_path_buf();
             return Self { dir, file };
         }
         let proj = ProjectDirs::from("dev", "Windman", "windman").expect("project dirs");
@@ -24,7 +26,9 @@ impl ConfigPaths {
         Self { dir, file }
     }
 
-    pub fn config_display(&self) -> String { self.file.display().to_string() }
+    pub fn config_display(&self) -> String {
+        self.file.display().to_string()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,20 +43,26 @@ pub struct Config {
 pub struct Install {
     /// Intentional, userland-only install to avoid requiring sudo and to keep environments portable.
     pub prefix_dir: String, // e.g. ~/.local/opt/windsurf
-    pub bin_dir: String,    // e.g. ~/.local/bin
-    pub channel: String,    // "stable" for now
-    pub keep: usize,        // number of previous versions to keep
+    pub bin_dir: String, // e.g. ~/.local/bin
+    pub channel: String, // "stable" for now
+    pub keep: usize,     // number of previous versions to keep
     pub desktop_integration: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Changelog { pub _reserved: Option<bool> }
+pub struct Changelog {
+    pub _reserved: Option<bool>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Network { pub proxy_enabled: bool }
+pub struct Network {
+    pub proxy_enabled: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Telemetry { pub enabled: bool }
+pub struct Telemetry {
+    pub enabled: bool,
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -65,7 +75,9 @@ impl Default for Config {
                 desktop_integration: true,
             },
             changelog: Changelog { _reserved: None },
-            network: Network { proxy_enabled: false },
+            network: Network {
+                proxy_enabled: false,
+            },
             telemetry: Telemetry { enabled: false },
         }
     }
@@ -76,8 +88,7 @@ impl Config {
         if paths.file.exists() {
             let s = fs::read_to_string(&paths.file)
                 .with_context(|| format!("reading config at {}", paths.config_display()))?;
-            let mut cfg: Config = toml::from_str(&s)
-                .with_context(|| "parsing TOML")?;
+            let mut cfg: Config = toml::from_str(&s).with_context(|| "parsing TOML")?;
             // Enforce userland choice explicitly (documented design decision)
             cfg.install.channel = "stable".into();
             Ok(cfg)
@@ -87,7 +98,9 @@ impl Config {
     }
 
     pub fn save_if_missing(&self, paths: &ConfigPaths) -> Result<()> {
-        if !paths.dir.exists() { fs::create_dir_all(&paths.dir)?; }
+        if !paths.dir.exists() {
+            fs::create_dir_all(&paths.dir)?;
+        }
         if !paths.file.exists() {
             let s = toml::to_string_pretty(self)?;
             fs::write(&paths.file, s)?;
