@@ -14,15 +14,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # commitlint needs history
+
       - uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
+
       - name: Install commitlint deps
-        run: npm ci
+        run: npm install --no-audit --no-fund
+
       - name: Commitlint
         uses: wagoid/commitlint-github-action@v5
         with:
           configFile: commitlint.config.js
+
 
   build-test:
     name: Build • Test • Clippy
