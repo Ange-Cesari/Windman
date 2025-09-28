@@ -99,7 +99,11 @@ mod tests_detect_version_layout_linux {
         let ver_dir = root.join("1.2.3");
         let prod = ver_dir.join("Windsurf/resources/app");
         fs::create_dir_all(&prod).unwrap();
-        fs::write(prod.join("product.json"), r#"{ "windsurfVersion":"1.2.3" }"#).unwrap();
+        fs::write(
+            prod.join("product.json"),
+            r#"{ "windsurfVersion":"1.2.3" }"#,
+        )
+        .unwrap();
 
         // current -> <ver_dir>
         let current = tmp.path().join("current");

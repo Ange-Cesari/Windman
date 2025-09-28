@@ -6,7 +6,6 @@ use tar::Archive;
 
 use crate::paths::EffectivePaths;
 use crate::util::{atomic_symlink_switch, timestamp_version, write_shim};
-
 /// Install from a .tar.gz path. Returns the resolved version string used.
 pub fn install_from_tar(tar_path: &str, eff: &EffectivePaths) -> Result<String> {
     fs::create_dir_all(&eff.versions_dir)
@@ -24,6 +23,9 @@ pub fn install_from_tar(tar_path: &str, eff: &EffectivePaths) -> Result<String> 
     // Extract tar.gz
     extract_tar_to_dir(tar_path, &staging)?;
 
+    // mémoriser la current avant bascule (si elle existe)
+    let _previous_current = std::fs::read_link(&eff.current_symlink).ok();
+
     // Determine version:
     // 1) from tar filename
     let ver_from_filename = extract_version_from_filename(tar_path);
@@ -33,8 +35,8 @@ pub fn install_from_tar(tar_path: &str, eff: &EffectivePaths) -> Result<String> 
 
     // 3) choose dir name
     let version = ver_from_filename
-    .or(ver_from_product)
-    .unwrap_or_else(timestamp_version);
+        .or(ver_from_product)
+        .unwrap_or_else(timestamp_version);
 
     let final_dir = eff.versions_dir.join(&version);
 
@@ -177,8 +179,8 @@ fn json_extract_field(s: &str, field: &str) -> Option<String> {
 #[cfg(test)]
 mod tests_install_from_tar_names_dir_by_version {
     use super::*;
-    use tempfile::tempdir;
     use std::path::Path;
+    use tempfile::tempdir;
 
     // Crée un tar.gz minimal: Windsurf/bin/windsurf + Windsurf/resources/app/product.json
     fn make_fake_windsurf_tar(path: &Path, version: &str) {

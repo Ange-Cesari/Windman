@@ -1,10 +1,9 @@
-use anyhow::{bail, Result};
-use clap::{Args, Parser, Subcommand};
-
 use crate::config::{Config, ConfigPaths};
 use crate::paths::resolve_paths;
 use crate::{desktop, install, prune, version};
-
+use anyhow::{bail, Result};
+use clap::{Args, Parser, Subcommand};
+use std::fs;
 #[derive(Parser, Debug)]
 #[command(
     name = "windman",
@@ -53,6 +52,10 @@ pub enum Commands {
     },
     /// Switch back to previous kept version
     Rollback,
+
+    /// Switch current to a specific installed version (e.g., windman use 1.12.11)
+    Use(UseArgs),
+
     /// Manage configuration
     #[command(subcommand)]
     Config(ConfigCmd),
@@ -64,6 +67,17 @@ pub enum Commands {
     /// Internal helper to test the downloader (hidden in help)
     #[command(hide = true)]
     DevDownload(DevDownloadArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct UseArgs {
+    /// Version folder name to activate (e.g., 1.12.11)
+    #[arg(value_name = "VERSION")]
+    pub version: String,
+
+    /// Dry-run: show what would change without touching the system
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Args, Debug)]
@@ -149,7 +163,9 @@ pub(crate) fn collect_installed(eff: &crate::paths::EffectivePaths) -> Vec<(Stri
                 let file_name = ent.file_name();
                 let name = file_name.to_string_lossy().to_string();
 
-                if name == "current" { continue; }
+                if name == "current" {
+                    continue;
+                }
                 if path.is_dir() {
                     let is_current = match &current_target {
                         Some(ct) => Path::new(ct).file_name() == Some(file_name.as_ref()),
@@ -173,7 +189,53 @@ pub(crate) fn collect_installed(eff: &crate::paths::EffectivePaths) -> Vec<(Stri
     entries
 }
 
+pub(crate) fn switch_to_version(
+    eff: &crate::paths::EffectivePaths,
+    version: &str,
+) -> anyhow::Result<()> {
+    let target = eff.versions_dir.join(version);
+    if !target.is_dir() {
+        // Préparer un message d’erreur utile avec les versions dispo
+        let mut available = Vec::new();
+        if eff.versions_dir.exists() {
+            if let Ok(rd) = fs::read_dir(&eff.versions_dir) {
+                for ent in rd.flatten() {
+                    let p = ent.path();
+                    if p.is_dir() {
+                        if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                            if name != "current" {
+                                available.push(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        available.sort();
+        anyhow::bail!(
+            "version '{}' not found under {}.\nAvailable: {}",
+            version,
+            eff.versions_dir.display(),
+            if available.is_empty() {
+                "<none>".to_string()
+            } else {
+                available.join(", ")
+            }
+        );
+    }
 
+    // Si current pointe déjà sur cette version, rien à faire
+    if let Ok(cur) = fs::read_link(&eff.current_symlink) {
+        if cur == target {
+            println!("Already using {}.", version);
+            return Ok(());
+        }
+    }
+
+    crate::util::atomic_symlink_switch(&target, &eff.current_symlink)?;
+    println!("Now using {}.", version);
+    Ok(())
+}
 
 impl Cli {
     pub fn parse() -> Self {
@@ -202,6 +264,8 @@ impl Cli {
 
         match &self.cmd {
             Commands::Install(args) => {
+                use std::path::PathBuf;
+
                 let keep = args.keep.unwrap_or(cfg.install.keep);
                 if args.dry_run {
                     println!("[dry-run] would install to {:?}", eff.prefix_dir);
@@ -210,8 +274,13 @@ impl Cli {
                 }
 
                 if let Some(tar) = &args.tar {
+                    // mémoriser la current avant bascule
+                    let previous_current: Option<PathBuf> =
+                        std::fs::read_link(&eff.current_symlink).ok();
+
                     let ver = install::install_from_tar(tar, &eff)?;
                     println!("Installed Windsurf {} to {:?}", ver, eff.prefix_dir);
+
                     let want_desktop = if args.no_desktop {
                         false
                     } else {
@@ -221,12 +290,33 @@ impl Cli {
                         desktop::ensure_desktop_files(&eff)?;
                         println!("Desktop entry installed");
                     }
-                    prune::prune_old_versions(&eff, keep)?;
+
+                    // Prune: préserver la nouvelle current + l'ancienne current
+                    let mut preserve: Vec<PathBuf> = Vec::new();
+                    if let Ok(cur) = std::fs::read_link(&eff.current_symlink) {
+                        preserve.push(cur);
+                    }
+                    if let Some(prev) = previous_current {
+                        preserve.push(prev);
+                    }
+                    prune::prune_old_versions_with_preserve(&eff.versions_dir, keep, &preserve)?;
                     Ok(())
                 } else {
                     bail!("--tar <FILE> is required for now. Network download will be added next.")
                 }
             }
+
+            Commands::Use(args) => {
+                if args.dry_run {
+                    let target = eff.versions_dir.join(&args.version);
+                    println!("[dry-run] would switch current -> {}", target.display());
+                    return Ok(());
+                }
+                switch_to_version(&eff, &args.version)?;
+                // le shim pointe déjà vers 'current', donc rien à régénérer
+                Ok(())
+            }
+
             Commands::Update(args) => {
                 use directories::ProjectDirs;
                 use semver::Version;
@@ -268,17 +358,20 @@ impl Cli {
                 let dl_dir = proj.cache_dir().join("downloads").join(&latest.version);
                 std::fs::create_dir_all(&dl_dir)?;
                 let filename = latest
-                .url
-                .rsplit('/')
-                .next()
-                .unwrap_or("windsurf-linux-x64.tar.gz");
+                    .url
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("windsurf-linux-x64.tar.gz");
                 let tar_path: PathBuf = dl_dir.join(filename);
 
                 crate::download::download_to_file_with_timeout(&latest.url, &tar_path, None)
                     .map_err(|e| anyhow::anyhow!("downloading {}: {}", latest.url, e))?;
                 println!("Downloaded {}", tar_path.display());
 
-                // 6) Install
+                // 6) Install (avec capture de l'ancienne current pour prune)
+                let previous_current: Option<PathBuf> =
+                    std::fs::read_link(&eff.current_symlink).ok();
+
                 let ver = install::install_from_tar(tar_path.to_string_lossy().as_ref(), &eff)?;
                 println!("Installed Windsurf {} to {:?}", ver, eff.prefix_dir);
 
@@ -293,8 +386,19 @@ impl Cli {
                     println!("Desktop entry installed");
                 }
 
-                // 8) Prune
-                prune::prune_old_versions(&eff, cfg.install.keep)?;
+                // 8) Prune: préserver la nouvelle current + l'ancienne current
+                let mut preserve: Vec<PathBuf> = Vec::new();
+                if let Ok(cur) = std::fs::read_link(&eff.current_symlink) {
+                    preserve.push(cur);
+                }
+                if let Some(prev) = previous_current {
+                    preserve.push(prev);
+                }
+                prune::prune_old_versions_with_preserve(
+                    &eff.versions_dir,
+                    cfg.install.keep,
+                    &preserve,
+                )?;
                 Ok(())
             }
 
@@ -319,9 +423,12 @@ impl Cli {
 
             Commands::List => {
                 let entries = collect_installed(&eff);
-            
+
                 if entries.is_empty() {
-                    println!("No installed versions found in {}.", eff.versions_dir.display());
+                    println!(
+                        "No installed versions found in {}.",
+                        eff.versions_dir.display()
+                    );
                 } else {
                     println!("Installed versions in {}:", eff.versions_dir.display());
                     for (name, is_current) in entries {
@@ -334,7 +441,6 @@ impl Cli {
                 }
                 Ok(())
             }
-            
 
             Commands::Changelog => {
                 println!("Changelog delta not implemented yet (coming next).");
@@ -395,12 +501,11 @@ impl Cli {
     }
 }
 
-
 #[cfg(test)]
 mod tests_list_collect {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn collects_and_marks_current() {
@@ -423,5 +528,56 @@ mod tests_list_collect {
         assert_eq!(got[0].0, "1.12.11");
         assert_eq!(got[1].0, "1.12.9");
         assert!(got.iter().find(|(n, _)| n == "1.12.9").unwrap().1);
+    }
+}
+
+#[cfg(test)]
+mod tests_use_switch {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn switches_current_symlink_to_requested_version() {
+        let tmp = tempdir().unwrap();
+        let eff = crate::paths::EffectivePaths {
+            prefix_dir: tmp.path().to_path_buf(),
+            versions_dir: tmp.path().join("versions"),
+            current_symlink: tmp.path().join("current"),
+            bin_dir: tmp.path().join("bin"),
+            bin_shim: tmp.path().join("bin/windsurf"),
+            desktop_file: tmp.path().join("share/applications/windsurf.desktop"),
+            icons_dir: tmp.path().join("share/icons"),
+        };
+        fs::create_dir_all(eff.versions_dir.join("1.12.10")).unwrap();
+        fs::create_dir_all(eff.versions_dir.join("1.12.11")).unwrap();
+
+        // current -> 1.12.10
+        std::os::unix::fs::symlink(eff.versions_dir.join("1.12.10"), &eff.current_symlink).unwrap();
+
+        // switch
+        switch_to_version(&eff, "1.12.11").unwrap();
+        let cur = fs::read_link(&eff.current_symlink).unwrap();
+        assert_eq!(cur.file_name().unwrap().to_string_lossy(), "1.12.11");
+    }
+
+    #[test]
+    fn errors_if_version_missing_with_available_list() {
+        let tmp = tempdir().unwrap();
+        let eff = crate::paths::EffectivePaths {
+            prefix_dir: tmp.path().to_path_buf(),
+            versions_dir: tmp.path().join("versions"),
+            current_symlink: tmp.path().join("current"),
+            bin_dir: tmp.path().join("bin"),
+            bin_shim: tmp.path().join("bin/windsurf"),
+            desktop_file: tmp.path().join("share/applications/windsurf.desktop"),
+            icons_dir: tmp.path().join("share/icons"),
+        };
+        fs::create_dir_all(eff.versions_dir.join("1.12.11")).unwrap();
+
+        let err = switch_to_version(&eff, "1.12.9").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("not found"));
+        assert!(msg.contains("1.12.11"));
     }
 }

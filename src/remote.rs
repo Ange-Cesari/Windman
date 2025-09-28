@@ -118,11 +118,11 @@ pub fn latest_stable_linux_x64(timeout_secs: Option<u64>) -> Result<LatestInfo> 
     }
 }
 
-
 #[cfg(test)]
 pub(crate) fn semver_from_string(s: &str) -> Option<String> {
     let re = regex::Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
-    re.captures(s).map(|c| c.get(1).unwrap().as_str().to_string())
+    re.captures(s)
+        .map(|c| c.get(1).unwrap().as_str().to_string())
 }
 #[cfg(test)]
 mod tests_semver_pick {

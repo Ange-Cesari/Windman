@@ -77,9 +77,9 @@ pub fn guess_version_from_folder(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-    use std::fs;
     use tempfile::tempdir;
 
     #[test]
