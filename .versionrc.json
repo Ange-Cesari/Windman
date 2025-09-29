@@ -1,14 +1,14 @@
 {
   "preset": "conventionalcommits",
   "types": [
-    { "type": "feat", "section": "✨ Features" },
-    { "type": "fix", "section": "🐛 Fixes" },
-    { "type": "docs", "section": "📝 Docs" },
+    { "type": "feat",     "section": "✨ Features" },
+    { "type": "fix",      "section": "🐛 Fixes" },
+    { "type": "docs",     "section": "📝 Docs" },
     { "type": "refactor", "section": "♻️ Refactoring" },
-    { "type": "perf", "section": "⚡ Performance" },
-    { "type": "test", "section": "✅ Tests" },
-    { "type": "ci", "section": "🤖 CI" },
-    { "type": "build", "section": "📦 Build" },
-    { "type": "chore", "section": "Chores" }
+    { "type": "perf",     "section": "⚡ Performance" },
+    { "type": "test",     "section": "✅ Tests" },
+    { "type": "ci",       "section": "🤖 CI/CD" },
+    { "type": "build",    "section": "📦 Build" },
+    { "type": "chore",    "section": "Chores", "hidden": true }
   ]
 }

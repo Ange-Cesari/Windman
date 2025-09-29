@@ -5,6 +5,9 @@ on:
     tags:
       - '*.*.*'   # e.g. 0.1.0
 
+permissions:
+  contents: write  # needed to create/update releases and upload assets
+
 env:
   BINARY_NAME: windman
 
@@ -84,9 +87,9 @@ jobs:
           skip-bump: true
           skip-version-file: true
           skip-git-pull: true
-          tag-prefix: ""                 # no 'v'
+          tag-prefix: ""                 # no 'v' in tags
           preset: conventionalcommits
-          config-file: .versionrc.json
+          config-file: .versionrc.json   # sections + emojis
           release-count: 0
 
       - name: Compose release body (title + sections)
@@ -95,7 +98,8 @@ jobs:
           {
             echo "# ${{ github.ref_name }}"
             echo
-            # Optionally add date: echo "_$(date -u +'%Y-%m-%d')_"
+            # Optionally add date:
+            # echo "_$(date -u +'%Y-%m-%d')_"
             # echo
             echo "${{ steps.changelog.outputs.clean_changelog }}"
           } > dist/RELEASE_BODY.md
@@ -107,8 +111,10 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          body_path: dist/RELEASE_BODY.md   # <-- use the composed file
+          body_path: dist/RELEASE_BODY.md
           files: |
-            dist/*
+            dist/*.tar.gz
+            dist/*.sha256
+            dist/sbom-*.cdx.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
