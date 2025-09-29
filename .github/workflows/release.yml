@@ -84,16 +84,30 @@ jobs:
           skip-bump: true
           skip-version-file: true
           skip-git-pull: true
-          tag-prefix: ""
+          tag-prefix: ""                 # no 'v'
           preset: conventionalcommits
+          config-file: .versionrc.json
           release-count: 0
+
+      - name: Compose release body (title + sections)
+        run: |
+          mkdir -p dist
+          {
+            echo "# ${{ github.ref_name }}"
+            echo
+            # Optionally add date: echo "_$(date -u +'%Y-%m-%d')_"
+            # echo
+            echo "${{ steps.changelog.outputs.clean_changelog }}"
+          } > dist/RELEASE_BODY.md
+          echo "----- RELEASE_BODY.md -----"
+          cat dist/RELEASE_BODY.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          body: ${{ steps.changelog.outputs.clean_changelog }}
+          body_path: dist/RELEASE_BODY.md   # <-- use the composed file
           files: |
             dist/*
         env:
