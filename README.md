@@ -128,4 +128,4 @@ task dist:linux TARGET=x86_64-unknown-linux-gnu
 
 ## License
 
-MIT (or choose your license). © You.
+MIT. © Ange Cesari.
